@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Geoportal Tlahuac</title>
+  </head>
+  <body>
+    <div id="app">
+      <header class="topbar">
+        <div class="brand">
+          <strong>Geoportal Tlahuac</strong>
+          <span>Capas y analisis de movilidad escolar</span>
+        </div>
+        <div class="topbar-actions">
+          <input id="search-input" type="text" placeholder="Buscar capa (ej: Metro, RTP, Escuela)" />
+          <button id="activate-all-btn">Activar</button>
+          <button id="clear-highlights-btn">Limpiar</button>
+        </div>
+      </header>
+
+      <div class="content">
+        <aside class="sidebar">
+          <div class="panel-block">
+            <div class="panel-title-row">
+              <h2>Capas</h2>
+              <button id="toggle-all-layers-btn" class="link-btn">Mostrar/Ocultar</button>
+            </div>
+
+            <p class="group-title">Equipamientos</p>
+            <label class="layer-item"><input id="layer-escuelas" type="checkbox" checked /> Escuelas</label>
+
+            <p class="group-title">Delimitacion</p>
+            <label class="layer-item"><input id="layer-tlahuac-limite" type="checkbox" checked /> Limite Tlahuac</label>
+            <label class="layer-item"><input id="layer-tlahuac-cp" type="checkbox" checked /> Colonias / CP Tlahuac</label>
+
+            <p class="group-title">Transporte</p>
+            <label class="layer-item"><input id="layer-metro-paradas" type="checkbox" checked /> Metro paradas</label>
+            <label class="layer-item"><input id="layer-rtp-paradas" type="checkbox" checked /> RTP paradas</label>
+            <label class="layer-item"><input id="layer-metro-rutas" type="checkbox" checked /> Metro rutas</label>
+            <label class="layer-item"><input id="layer-rtp-rutas" type="checkbox" checked /> RTP rutas</label>
+            <label class="layer-item"><input id="layer-camiones-rutas" type="checkbox" checked /> Camiones rutas</label>
+          </div>
+
+          <div class="panel-block">
+            <h2>Ubicacion en tiempo real</h2>
+            <div class="row">
+              <button id="start-location-btn">Activar</button>
+              <button id="stop-location-btn">Detener</button>
+            </div>
+            <button id="center-location-btn" class="full">Centrar en mi ubicacion</button>
+            <p id="location-status" class="status">Estado: inactivo</p>
+          </div>
+
+          <div class="panel-block">
+            <h2>Analisis de cercania</h2>
+            <label>Radio paradas (m)</label>
+            <input id="stops-radius-input" type="number" min="50" step="50" value="500" />
+            <label>Radio lineas (m)</label>
+            <input id="lines-radius-input" type="number" min="50" step="50" value="300" />
+            <p class="muted small">Haz clic en una escuela para analizar.</p>
+            <div id="school-panel" class="panel">Sin escuela seleccionada.</div>
+          </div>
+
+          <div class="panel-block">
+            <h2>Origen y destino</h2>
+            <div class="row">
+              <button id="pick-origin-btn">Elegir origen en mapa</button>
+              <button id="pick-destination-btn">Elegir destino en mapa</button>
+            </div>
+            <button id="use-my-location-btn" class="full">Usar mi ubicacion como origen</button>
+
+            <label>Origen (lat, lng)</label>
+            <input id="origin-input" type="text" placeholder="19.29, -99.02" />
+            <label>Destino (lat, lng)</label>
+            <input id="destination-input" type="text" placeholder="19.30, -99.01" />
+
+            <label>Modo</label>
+            <select id="route-profile-select">
+              <option value="driving">Auto</option>
+              <option value="walking">Caminando</option>
+              <option value="cycling">Bicicleta</option>
+            </select>
+
+            <button id="route-btn" class="full">Calcular ruta</button>
+            <p id="route-status" class="status">Ruta: sin calcular</p>
+          </div>
+        </aside>
+
+        <main>
+          <div id="map"></div>
+        </main>
+      </div>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

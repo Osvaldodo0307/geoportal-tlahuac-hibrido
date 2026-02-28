@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: geoportal-tlahuac-backend
+    runtime: node
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm run start
+    envVars:
+      - key: NODE_VERSION
+        value: 20
