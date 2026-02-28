@@ -54,6 +54,11 @@
 
           <div class="panel-block">
             <h2>Analisis de cercania</h2>
+            <label>Escuela (nom_estab)</label>
+            <select id="school-select">
+              <option value="">Selecciona una escuela...</option>
+            </select>
+            <button id="search-school-btn" class="full">Buscar y analizar escuela</button>
             <label>Radio paradas (m)</label>
             <input id="stops-radius-input" type="number" min="50" step="50" value="500" />
             <label>Radio lineas (m)</label>
@@ -69,11 +74,8 @@
               <button id="pick-destination-btn">Elegir destino en mapa</button>
             </div>
             <button id="use-my-location-btn" class="full">Usar mi ubicacion como origen</button>
-
-            <label>Origen (lat, lng)</label>
-            <input id="origin-input" type="text" placeholder="19.29, -99.02" />
-            <label>Destino (lat, lng)</label>
-            <input id="destination-input" type="text" placeholder="19.30, -99.01" />
+            <p id="origin-display" class="status">Origen: no definido</p>
+            <p id="destination-display" class="status">Destino: no definido</p>
 
             <label>Modo</label>
             <select id="route-profile-select">

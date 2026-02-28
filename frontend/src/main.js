@@ -22,9 +22,10 @@ const locationStatus = document.querySelector("#location-status");
 const routeStatus = document.querySelector("#route-status");
 const stopsRadiusInput = document.querySelector("#stops-radius-input");
 const linesRadiusInput = document.querySelector("#lines-radius-input");
-const originInput = document.querySelector("#origin-input");
-const destinationInput = document.querySelector("#destination-input");
+const originDisplay = document.querySelector("#origin-display");
+const destinationDisplay = document.querySelector("#destination-display");
 const routeProfileSelect = document.querySelector("#route-profile-select");
+const schoolSelect = document.querySelector("#school-select");
 
 const layers = {};
 const highlightLayers = {
@@ -37,7 +38,10 @@ let lastLocation = null;
 let watchId = null;
 let pickMode = null;
 let selectedSchool = null;
+let selectedOrigin = null;
+let selectedDestination = null;
 const layerRefs = {};
+const schoolSearchIndex = [];
 
 function formatMeters(value) {
   return `${Math.round(value)} m`;
@@ -58,16 +62,8 @@ function propsHtml(properties, keys) {
     .join("<br/>");
 }
 
-function parseLatLng(inputValue) {
-  const parts = inputValue.split(",").map((x) => Number(x.trim()));
-  if (parts.length !== 2 || Number.isNaN(parts[0]) || Number.isNaN(parts[1])) {
-    return null;
-  }
-  return { lat: parts[0], lng: parts[1] };
-}
-
-function setInputLatLng(input, latlng) {
-  input.value = `${latlng.lat.toFixed(6)}, ${latlng.lng.toFixed(6)}`;
+function formatLatLng(latlng) {
+  return `${latlng.lat.toFixed(6)}, ${latlng.lng.toFixed(6)}`;
 }
 
 function updateSchoolPanel({ schoolFeature, stopResults, lineResults }) {
@@ -99,6 +95,12 @@ function updateSchoolPanel({ schoolFeature, stopResults, lineResults }) {
     <b>Lineas cercanas</b>
     <ul>${linesRows}</ul>
   `;
+}
+
+function selectSchool({ feature, latlng }) {
+  selectedSchool = { feature, latlng };
+  map.setView([latlng.lat, latlng.lng], Math.max(map.getZoom(), 15));
+  runSchoolAnalysis();
 }
 
 function runSchoolAnalysis() {
@@ -167,17 +169,26 @@ function runSchoolAnalysis() {
 
 function bindSchoolLayer(layer) {
   layer.on("click", (event) => {
-    selectedSchool = {
+    selectSchool({
       feature: event.layer.feature,
       latlng: event.latlng
-    };
-    runSchoolAnalysis();
+    });
   });
 }
 
 function makeSchoolLayer(data, icons) {
   return L.geoJSON(data, {
     pointToLayer: (feature, latlng) => {
+      const schoolLabel =
+        feature?.properties?.nom_estab ||
+        feature?.properties?.nombre_act ||
+        "Escuela sin nombre";
+      schoolSearchIndex.push({
+        id: String(feature?.properties?.id ?? schoolSearchIndex.length + 1),
+        nom_estab: schoolLabel,
+        feature,
+        latlng
+      });
       const marker = L.marker(latlng, { icon: icons.schoolIcon });
       marker.bindPopup(
         propsHtml(feature.properties, ["nom_estab", "raz_social", "nombre_act", "nom_vial"])
@@ -185,6 +196,113 @@ function makeSchoolLayer(data, icons) {
       return marker;
     },
     onEachFeature: (_feature, layer) => bindSchoolLayer(layer)
+  });
+}
+
+function populateSchoolSelect() {
+  const uniqueByName = new Map();
+  schoolSearchIndex.forEach((item) => {
+    if (!uniqueByName.has(item.nom_estab)) {
+      uniqueByName.set(item.nom_estab, item);
+    }
+  });
+  const schools = [...uniqueByName.values()].sort((a, b) =>
+    a.nom_estab.localeCompare(b.nom_estab, "es")
+  );
+
+  schools.forEach((school) => {
+    const option = document.createElement("option");
+    option.value = school.id;
+    option.textContent = school.nom_estab;
+    schoolSelect?.appendChild(option);
+  });
+}
+
+function setupSchoolSearch() {
+  const searchButton = document.querySelector("#search-school-btn");
+  const runSearch = () => {
+    if (!schoolSelect?.value) {
+      schoolPanel.textContent = "Selecciona una escuela del listado para analizar.";
+      return;
+    }
+    const school = schoolSearchIndex.find((item) => item.id === schoolSelect.value);
+    if (!school) {
+      schoolPanel.textContent = "No se encontro la escuela seleccionada.";
+      return;
+    }
+    selectSchool({
+      feature: school.feature,
+      latlng: school.latlng
+    });
+  };
+
+  searchButton?.addEventListener("click", runSearch);
+  schoolSelect?.addEventListener("change", runSearch);
+}
+
+function applyVisualDensityMode() {
+  const managedLayers = [
+    layerRefs.escuelasLayer,
+    layerRefs.tlahuacLimiteLayer,
+    layerRefs.tlahuacCpLayer,
+    layerRefs.metroParadasLayer,
+    layerRefs.rtpParadasLayer,
+    layerRefs.metroRutasLayer,
+    layerRefs.rtpRutasLayer,
+    layerRefs.camionesRutasLayer
+  ].filter(Boolean);
+  const activeCount = managedLayers.filter((layer) => map.hasLayer(layer)).length;
+  const denseMode = activeCount >= 7;
+
+  if (layerRefs.metroRutasLayer?.setStyle) {
+    layerRefs.metroRutasLayer.setStyle({
+      color: "#f59e0b",
+      weight: denseMode ? 2.2 : 3,
+      opacity: denseMode ? 0.6 : 0.9
+    });
+  }
+  if (layerRefs.rtpRutasLayer?.setStyle) {
+    layerRefs.rtpRutasLayer.setStyle({
+      color: "#0b8f3a",
+      weight: denseMode ? 2.2 : 3,
+      opacity: denseMode ? 0.62 : 0.9
+    });
+  }
+  if (layerRefs.camionesRutasLayer?.setStyle) {
+    layerRefs.camionesRutasLayer.setStyle({
+      color: "#7e6aa8",
+      weight: denseMode ? 2 : 2.4,
+      opacity: denseMode ? 0.5 : 0.65,
+      dashArray: "4,6"
+    });
+  }
+  if (layerRefs.tlahuacCpLayer?.setStyle) {
+    layerRefs.tlahuacCpLayer.setStyle({
+      color: "#8fa6b6",
+      weight: denseMode ? 1 : 1.2,
+      opacity: denseMode ? 0.5 : 0.75,
+      fill: false
+    });
+  }
+  if (layerRefs.tlahuacLimiteLayer?.setStyle) {
+    layerRefs.tlahuacLimiteLayer.setStyle({
+      color: "#000000",
+      weight: denseMode ? 3 : 3.8,
+      opacity: denseMode ? 0.7 : 0.85,
+      fill: false
+    });
+  }
+
+  const transportMarkerOpacity = denseMode ? 0.55 : 1;
+  [layerRefs.metroParadasLayer, layerRefs.rtpParadasLayer].forEach((groupLayer) => {
+    if (!groupLayer?.eachLayer) {
+      return;
+    }
+    groupLayer.eachLayer((markerLayer) => {
+      if (markerLayer?.setOpacity) {
+        markerLayer.setOpacity(transportMarkerOpacity);
+      }
+    });
   });
 }
 
@@ -262,7 +380,10 @@ function setupLocationButtons() {
     try {
       const loc = await getCurrentLocation();
       lastLocation = loc;
-      setInputLatLng(originInput, loc);
+      selectedOrigin = loc;
+      if (originDisplay) {
+        originDisplay.textContent = `Origen: ${formatLatLng(loc)}`;
+      }
       map.setView([loc.lat, loc.lng], 15);
       locationStatus.textContent = `Ubicacion obtenida (precision aprox ${loc.accuracy} m)`;
     } catch (error) {
@@ -283,11 +404,17 @@ function setupPickButtons() {
 
   map.on("click", (event) => {
     if (pickMode === "origin") {
-      setInputLatLng(originInput, event.latlng);
+      selectedOrigin = event.latlng;
+      if (originDisplay) {
+        originDisplay.textContent = `Origen: ${formatLatLng(event.latlng)}`;
+      }
       pickMode = null;
       routeStatus.textContent = "Origen actualizado.";
     } else if (pickMode === "destination") {
-      setInputLatLng(destinationInput, event.latlng);
+      selectedDestination = event.latlng;
+      if (destinationDisplay) {
+        destinationDisplay.textContent = `Destino: ${formatLatLng(event.latlng)}`;
+      }
       pickMode = null;
       routeStatus.textContent = "Destino actualizado.";
     }
@@ -296,18 +423,17 @@ function setupPickButtons() {
 
 function setupRouteButton() {
   document.querySelector("#route-btn").addEventListener("click", async () => {
-    const origin = parseLatLng(originInput.value);
-    const destination = parseLatLng(destinationInput.value);
-    if (!origin || !destination) {
-      routeStatus.textContent = "Ingresa origen y destino validos (lat, lng).";
+    if (!selectedOrigin || !selectedDestination) {
+      routeStatus.textContent =
+        "Define origen y destino desde el mapa (o usa mi ubicacion como origen).";
       return;
     }
 
     routeStatus.textContent = "Calculando ruta...";
     try {
       const routeData = await calculateRoute({
-        origin,
-        destination,
+        origin: selectedOrigin,
+        destination: selectedDestination,
         profile: routeProfileSelect.value
       });
       highlightLayers.route.clearLayers();
@@ -356,6 +482,7 @@ function setupLayerToggles() {
     const input = document.querySelector(checkbox);
     input?.addEventListener("change", () => {
       setLayerVisibility(layerRefs[key], input.checked);
+      applyVisualDensityMode();
     });
   });
 
@@ -367,6 +494,7 @@ function setupLayerToggles() {
       }
       setLayerVisibility(layerRefs[key], true);
     });
+    applyVisualDensityMode();
   });
 
   document.querySelector("#toggle-all-layers-btn")?.addEventListener("click", () => {
@@ -379,6 +507,7 @@ function setupLayerToggles() {
       }
       setLayerVisibility(layerRefs[key], newVisible);
     });
+    applyVisualDensityMode();
   });
 
   document.querySelector("#clear-highlights-btn")?.addEventListener("click", () => {
@@ -424,7 +553,7 @@ async function init() {
     allData.tlahuacLimite,
     {
       color: "#000000",
-      weight: 2.4,
+      weight: 3.8,
       opacity: 0.85,
       fill: false
     },
@@ -479,6 +608,9 @@ async function init() {
   setupPickButtons();
   setupRouteButton();
   setupLayerToggles();
+  populateSchoolSelect();
+  setupSchoolSearch();
+  applyVisualDensityMode();
 
   stopsRadiusInput.addEventListener("change", runSchoolAnalysis);
   linesRadiusInput.addEventListener("change", runSchoolAnalysis);
