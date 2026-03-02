@@ -29,6 +29,8 @@ const linesRadiusInput = document.querySelector("#lines-radius-input");
 const schoolSelect = document.querySelector("#school-select");
 const transitPanelStatus = document.querySelector("#transit-panel-status");
 const transitOptionsList = document.querySelector("#transit-options-list");
+const transitPanel = document.querySelector(".right-panel");
+const transitPanelToggle = document.querySelector("#transit-panel-toggle");
 
 const layers = {};
 const highlightLayers = {
@@ -45,6 +47,7 @@ const layerRefs = {};
 const schoolSearchIndex = [];
 const schoolByName = new Map();
 let latestTransitOptions = [];
+let isTransitPanelCollapsed = false;
 
 function formatMeters(value) {
   return `${Math.round(value)} m`;
@@ -253,6 +256,26 @@ function renderTransitOptions(options) {
       <button data-opt-idx="${idx}">Trazar caminata a esta opcion</button>
     `;
     transitOptionsList.appendChild(box);
+  });
+}
+
+function setTransitPanelCollapsed(nextValue) {
+  isTransitPanelCollapsed = Boolean(nextValue);
+  if (!transitPanel || !transitPanelToggle) {
+    return;
+  }
+  transitPanel.classList.toggle("collapsed", isTransitPanelCollapsed);
+  transitPanelToggle.textContent = isTransitPanelCollapsed ? "Ver opciones" : "Ocultar";
+}
+
+function setupTransitPanelToggle() {
+  if (!transitPanel || !transitPanelToggle) {
+    return;
+  }
+  const startsCollapsedOnMobile = window.matchMedia("(max-width: 1000px)").matches;
+  setTransitPanelCollapsed(startsCollapsedOnMobile);
+  transitPanelToggle.addEventListener("click", () => {
+    setTransitPanelCollapsed(!isTransitPanelCollapsed);
   });
 }
 
@@ -889,6 +912,7 @@ async function init() {
   setupLocationButtons();
   setupLayerToggles();
   setupTransitOptionActions();
+  setupTransitPanelToggle();
   populateSchoolSelect();
   setupSchoolSearch();
   applyVisualDensityMode();

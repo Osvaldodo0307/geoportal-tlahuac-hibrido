@@ -261,6 +261,24 @@ main {
   font-size: 0.95rem;
 }
 
+.right-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.panel-toggle-btn {
+  width: auto;
+  margin: 0;
+  padding: 4px 8px;
+  font-size: 0.8rem;
+}
+
+.right-panel.collapsed #transit-panel-body {
+  display: none;
+}
+
 .transit-list {
   display: grid;
   gap: 8px;
@@ -334,6 +352,24 @@ main {
     bottom: 10px;
     top: auto;
     width: auto;
-    max-height: 34vh;
+    max-height: 17vh;
+    padding: 8px;
+  }
+
+  .right-panel.collapsed {
+    max-height: unset;
+  }
+
+  .right-panel h3 {
+    font-size: 0.88rem;
+    margin-bottom: 6px;
+  }
+
+  .transit-option {
+    padding: 6px;
+  }
+
+  .transit-option .top {
+    font-size: 0.8rem;
   }
 }
