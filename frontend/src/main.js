@@ -3,9 +3,7 @@ import "./styles.css";
 import { DEFAULT_CENTER, DEFAULT_ZOOM } from "./config";
 import { loadAllData } from "./services/dataService";
 import { nearestLines, nearestStops } from "./services/analysisService";
-import { calculateRoute } from "./services/routingService";
 import {
-  getCurrentLocation,
   stopWatchingLocation,
   watchUserLocation
 } from "./services/locationService";
@@ -19,28 +17,20 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
 
 const schoolPanel = document.querySelector("#school-panel");
 const locationStatus = document.querySelector("#location-status");
-const routeStatus = document.querySelector("#route-status");
 const stopsRadiusInput = document.querySelector("#stops-radius-input");
 const linesRadiusInput = document.querySelector("#lines-radius-input");
-const originDisplay = document.querySelector("#origin-display");
-const destinationDisplay = document.querySelector("#destination-display");
-const routeProfileSelect = document.querySelector("#route-profile-select");
 const schoolSelect = document.querySelector("#school-select");
 
 const layers = {};
 const highlightLayers = {
   school: L.layerGroup().addTo(map),
   stops: L.layerGroup().addTo(map),
-  lines: L.layerGroup().addTo(map),
-  route: L.layerGroup().addTo(map)
+  lines: L.layerGroup().addTo(map)
 };
 
 let lastLocation = null;
 let watchId = null;
-let pickMode = null;
 let selectedSchool = null;
-let selectedOrigin = null;
-let selectedDestination = null;
 const layerRefs = {};
 const schoolSearchIndex = [];
 
@@ -63,12 +53,39 @@ function propsHtml(properties, keys) {
     .join("<br/>");
 }
 
-function formatLatLng(latlng) {
-  return `${latlng.lat.toFixed(6)}, ${latlng.lng.toFixed(6)}`;
-}
-
 function updateSchoolPanel({ schoolFeature, stopResults, lineResults }) {
   const schoolTitle = schoolName(schoolFeature);
+  const countByLayer = (rows, layerName) =>
+    rows.filter((x) => x.layerName === layerName).length;
+  const minDist = (rows, layerName) => {
+    const items = rows
+      .filter((x) => x.layerName === layerName)
+      .map((x) => x.distanceMeters);
+    return items.length ? Math.min(...items) : null;
+  };
+  const dashboardCards = [
+    {
+      label: "Metro parada mas cercana",
+      value: minDist(stopResults, "Metro paradas")
+    },
+    {
+      label: "RTP parada mas cercana",
+      value: minDist(stopResults, "RTP paradas")
+    },
+    {
+      label: "Metro rutas cercanas",
+      value: countByLayer(lineResults, "Metro rutas")
+    },
+    {
+      label: "RTP rutas cercanas",
+      value: countByLayer(lineResults, "RTP rutas")
+    },
+    {
+      label: "Camiones rutas cercanas",
+      value: countByLayer(lineResults, "Camiones rutas")
+    }
+  ];
+
   const stopsRows =
     stopResults.length === 0
       ? "<li>Sin paradas cercanas en el radio configurado.</li>"
@@ -90,6 +107,16 @@ function updateSchoolPanel({ schoolFeature, stopResults, lineResults }) {
 
   schoolPanel.innerHTML = `
     <b>Escuela:</b> ${schoolTitle}
+    <hr/>
+    <div class="dashboard-stats">
+      ${dashboardCards
+        .map((card) => {
+          const valueText =
+            card.value === null || card.value === 0 ? "N/A" : `${card.value}${card.label.includes("parada mas cercana") ? " m" : ""}`;
+          return `<div class="stat-card"><span>${card.label}</span><b>${valueText}</b></div>`;
+        })
+        .join("")}
+    </div>
     <hr/>
     <b>Paradas cercanas</b>
     <ul>${stopsRows}</ul>
@@ -178,6 +205,31 @@ function runSchoolAnalysis() {
       .bindPopup(`${item.name}<br/>${item.layerName}<br/>Distancia: ${formatMeters(item.distanceMeters)}`)
       .addTo(highlightLayers.lines);
   });
+
+  // Enciende automaticamente las capas de transporte relacionadas al resultado.
+  const shouldShow = {
+    metroParadas: stopResults.some((x) => x.layerName === "Metro paradas"),
+    rtpParadas: stopResults.some((x) => x.layerName === "RTP paradas"),
+    metroRutas: lineResults.some((x) => x.layerName === "Metro rutas"),
+    rtpRutas: lineResults.some((x) => x.layerName === "RTP rutas"),
+    camionesRutas: lineResults.some((x) => x.layerName === "Camiones rutas")
+  };
+  const applyLayer = (checkboxId, layer, enabled) => {
+    if (!enabled) {
+      return;
+    }
+    const check = document.querySelector(checkboxId);
+    if (check) {
+      check.checked = true;
+    }
+    setLayerVisibility(layer, true);
+  };
+  applyLayer("#layer-metro-paradas", layerRefs.metroParadasLayer, shouldShow.metroParadas);
+  applyLayer("#layer-rtp-paradas", layerRefs.rtpParadasLayer, shouldShow.rtpParadas);
+  applyLayer("#layer-metro-rutas", layerRefs.metroRutasLayer, shouldShow.metroRutas);
+  applyLayer("#layer-rtp-rutas", layerRefs.rtpRutasLayer, shouldShow.rtpRutas);
+  applyLayer("#layer-camiones-rutas", layerRefs.camionesRutasLayer, shouldShow.camionesRutas);
+  applyVisualDensityMode();
 
   updateSchoolPanel({
     schoolFeature: selectedSchool.feature,
@@ -395,82 +447,6 @@ function setupLocationButtons() {
     map.setView([lastLocation.lat, lastLocation.lng], 15);
   });
 
-  document.querySelector("#use-my-location-btn").addEventListener("click", async () => {
-    try {
-      const loc = await getCurrentLocation();
-      lastLocation = loc;
-      selectedOrigin = loc;
-      if (originDisplay) {
-        originDisplay.textContent = `Origen: ${formatLatLng(loc)}`;
-      }
-      map.setView([loc.lat, loc.lng], 15);
-      locationStatus.textContent = `Ubicacion obtenida (precision aprox ${loc.accuracy} m)`;
-    } catch (error) {
-      locationStatus.textContent = `Error al obtener ubicacion: ${error.message}`;
-    }
-  });
-}
-
-function setupPickButtons() {
-  document.querySelector("#pick-origin-btn").addEventListener("click", () => {
-    pickMode = "origin";
-    routeStatus.textContent = "Haz clic en el mapa para definir el origen.";
-  });
-  document.querySelector("#pick-destination-btn").addEventListener("click", () => {
-    pickMode = "destination";
-    routeStatus.textContent = "Haz clic en el mapa para definir el destino.";
-  });
-
-  map.on("click", (event) => {
-    if (pickMode === "origin") {
-      selectedOrigin = event.latlng;
-      if (originDisplay) {
-        originDisplay.textContent = `Origen: ${formatLatLng(event.latlng)}`;
-      }
-      pickMode = null;
-      routeStatus.textContent = "Origen actualizado.";
-    } else if (pickMode === "destination") {
-      selectedDestination = event.latlng;
-      if (destinationDisplay) {
-        destinationDisplay.textContent = `Destino: ${formatLatLng(event.latlng)}`;
-      }
-      pickMode = null;
-      routeStatus.textContent = "Destino actualizado.";
-    }
-  });
-}
-
-function setupRouteButton() {
-  document.querySelector("#route-btn").addEventListener("click", async () => {
-    if (!selectedOrigin || !selectedDestination) {
-      routeStatus.textContent =
-        "Define origen y destino desde el mapa (o usa mi ubicacion como origen).";
-      return;
-    }
-
-    routeStatus.textContent = "Calculando ruta...";
-    try {
-      const routeData = await calculateRoute({
-        origin: selectedOrigin,
-        destination: selectedDestination,
-        profile: routeProfileSelect.value
-      });
-      highlightLayers.route.clearLayers();
-      L.geoJSON(
-        {
-          type: "Feature",
-          geometry: routeData.geometry,
-          properties: {}
-        },
-        {
-          style: { color: "#16a34a", weight: 5, opacity: 0.9 }
-        }
-      ).addTo(highlightLayers.route);
-      routeStatus.textContent = `Ruta lista: ${formatMeters(routeData.distanceMeters)}, ${Math.round(routeData.durationSeconds / 60)} min aprox.`;
-    } catch (error) {
-      routeStatus.textContent = `Error de ruta: ${error.message}`;
-    }
-  });
 }
 
 function setLayerVisibility(layer, visible) {
@@ -533,9 +509,7 @@ function setupLayerToggles() {
     highlightLayers.school.clearLayers();
     highlightLayers.stops.clearLayers();
     highlightLayers.lines.clearLayers();
-    highlightLayers.route.clearLayers();
     schoolPanel.textContent = "Resultados limpiados. Selecciona otra escuela para analizar.";
-    routeStatus.textContent = "Ruta: sin calcular";
   });
 
   document.querySelector("#search-input")?.addEventListener("input", (event) => {
@@ -631,8 +605,6 @@ async function init() {
   rtpParadasLayer.bringToFront();
 
   setupLocationButtons();
-  setupPickButtons();
-  setupRouteButton();
   setupLayerToggles();
   populateSchoolSelect();
   setupSchoolSearch();

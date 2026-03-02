@@ -205,6 +205,32 @@ button:hover {
   color: #ffecef;
 }
 
+.dashboard-stats {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+}
+
+.stat-card {
+  border: 1px solid #8d3a46;
+  border-radius: 8px;
+  background: #4c1219;
+  padding: 8px;
+}
+
+.stat-card span {
+  display: block;
+  font-size: 0.8rem;
+  color: #f2c9cf;
+}
+
+.stat-card b {
+  display: block;
+  margin-top: 3px;
+  font-size: 1rem;
+  color: #fff9fa;
+}
+
 #map {
   width: 100%;
   height: 100%;
