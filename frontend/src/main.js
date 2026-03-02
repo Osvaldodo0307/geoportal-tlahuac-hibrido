@@ -33,6 +33,7 @@ let watchId = null;
 let selectedSchool = null;
 const layerRefs = {};
 const schoolSearchIndex = [];
+const schoolByName = new Map();
 
 function formatMeters(value) {
   return `${Math.round(value)} m`;
@@ -53,7 +54,7 @@ function propsHtml(properties, keys) {
     .join("<br/>");
 }
 
-function updateSchoolPanel({ schoolFeature, stopResults, lineResults }) {
+function updateSchoolPanel({ schoolFeature, stopResults, lineResults, liveOptions = [], hasLiveLocation = false }) {
   const schoolTitle = schoolName(schoolFeature);
   const countByLayer = (rows, layerName) =>
     rows.filter((x) => x.layerName === layerName).length;
@@ -118,6 +119,22 @@ function updateSchoolPanel({ schoolFeature, stopResults, lineResults }) {
         .join("")}
     </div>
     <hr/>
+    <b>Opciones desde tu ubicacion</b>
+    <ul>
+      ${
+        !hasLiveLocation
+          ? "<li>Activa ubicacion en tiempo real para sugerencias de llegada.</li>"
+          : liveOptions.length === 0
+            ? "<li>Sin opciones claras en el radio actual. Amplia el radio de analisis.</li>"
+            : liveOptions
+                .map(
+                  (opt) =>
+                    `<li><b>${opt.mode}</b> - indice aprox: ${opt.score} m (${opt.detail})</li>`
+                )
+                .join("")
+      }
+    </ul>
+    <hr/>
     <b>Paradas cercanas</b>
     <ul>${stopsRows}</ul>
     <b>Lineas cercanas</b>
@@ -127,6 +144,12 @@ function updateSchoolPanel({ schoolFeature, stopResults, lineResults }) {
 
 function selectSchool({ feature, latlng }) {
   selectedSchool = { feature, latlng };
+  const selectedName =
+    feature?.properties?.nom_estab ||
+    feature?.properties?.nombre_act;
+  if (selectedName && schoolSelect && schoolByName.has(selectedName)) {
+    schoolSelect.value = selectedName;
+  }
   highlightLayers.school.clearLayers();
   L.circleMarker([latlng.lat, latlng.lng], {
     radius: 13,
@@ -147,6 +170,83 @@ function selectSchool({ feature, latlng }) {
     duration: 0.8
   });
   runSchoolAnalysis();
+}
+
+function minDistanceByMode(items) {
+  const modeOf = (layerName) => {
+    if (layerName.includes("Metro")) {
+      return "Metro";
+    }
+    if (layerName.includes("RTP")) {
+      return "RTP";
+    }
+    return "Camiones";
+  };
+  const result = new Map();
+  items.forEach((item) => {
+    const mode = modeOf(item.layerName);
+    const current = result.get(mode);
+    if (current === undefined || item.distanceMeters < current) {
+      result.set(mode, item.distanceMeters);
+    }
+  });
+  return result;
+}
+
+function buildLiveLocationOptions({ schoolLatLng, schoolStopResults, schoolLineResults }) {
+  if (!lastLocation) {
+    return [];
+  }
+
+  const userStops = nearestStops({
+    schoolLatLng: lastLocation,
+    stopLayers: [
+      { layerName: "Metro paradas", features: layers.metroParadasData.features },
+      { layerName: "RTP paradas", features: layers.rtpParadasData.features }
+    ],
+    radiusMeters: 1500,
+    maxItems: 40
+  });
+
+  const userLines = nearestLines({
+    schoolLatLng: lastLocation,
+    lineLayers: [
+      { layerName: "Metro rutas", features: layers.metroRutasData.features },
+      { layerName: "RTP rutas", features: layers.rtpRutasData.features },
+      { layerName: "Camiones rutas", features: layers.camionesRutasData.features }
+    ],
+    radiusMeters: 1200,
+    maxItems: 40
+  });
+
+  const schoolStopsByMode = minDistanceByMode(schoolStopResults);
+  const schoolLinesByMode = minDistanceByMode(schoolLineResults);
+  const userStopsByMode = minDistanceByMode(userStops);
+  const userLinesByMode = minDistanceByMode(userLines);
+
+  const modes = ["Metro", "RTP", "Camiones"];
+  const options = [];
+  modes.forEach((mode) => {
+    const accessUser = Math.min(
+      userStopsByMode.get(mode) ?? Number.POSITIVE_INFINITY,
+      userLinesByMode.get(mode) ?? Number.POSITIVE_INFINITY
+    );
+    const accessSchool = Math.min(
+      schoolStopsByMode.get(mode) ?? Number.POSITIVE_INFINITY,
+      schoolLinesByMode.get(mode) ?? Number.POSITIVE_INFINITY
+    );
+    if (!Number.isFinite(accessUser) || !Number.isFinite(accessSchool)) {
+      return;
+    }
+    const score = Math.round(accessUser + accessSchool);
+    options.push({
+      mode,
+      score,
+      detail: `acceso usuario ${Math.round(accessUser)} m + acceso escuela ${Math.round(accessSchool)} m`
+    });
+  });
+
+  return options.sort((a, b) => a.score - b.score).slice(0, 3);
 }
 
 function runSchoolAnalysis() {
@@ -231,10 +331,18 @@ function runSchoolAnalysis() {
   applyLayer("#layer-camiones-rutas", layerRefs.camionesRutasLayer, shouldShow.camionesRutas);
   applyVisualDensityMode();
 
+  const liveOptions = buildLiveLocationOptions({
+    schoolLatLng,
+    schoolStopResults: stopResults,
+    schoolLineResults: lineResults
+  });
+
   updateSchoolPanel({
     schoolFeature: selectedSchool.feature,
     stopResults,
-    lineResults
+    lineResults,
+    liveOptions,
+    hasLiveLocation: Boolean(lastLocation)
   });
 }
 
@@ -260,6 +368,12 @@ function makeSchoolLayer(data, icons) {
         feature,
         latlng
       });
+      if (!schoolByName.has(schoolLabel)) {
+        schoolByName.set(schoolLabel, {
+          feature,
+          latlng
+        });
+      }
       const marker = L.marker(latlng, { icon: icons.schoolIcon });
       marker.bindPopup(
         propsHtml(feature.properties, ["nom_estab", "raz_social", "nombre_act", "nom_vial"])
@@ -271,20 +385,14 @@ function makeSchoolLayer(data, icons) {
 }
 
 function populateSchoolSelect() {
-  const uniqueByName = new Map();
-  schoolSearchIndex.forEach((item) => {
-    if (!uniqueByName.has(item.nom_estab)) {
-      uniqueByName.set(item.nom_estab, item);
-    }
-  });
-  const schools = [...uniqueByName.values()].sort((a, b) =>
-    a.nom_estab.localeCompare(b.nom_estab, "es")
+  const schools = [...schoolByName.keys()].sort((a, b) =>
+    a.localeCompare(b, "es")
   );
 
-  schools.forEach((school) => {
+  schools.forEach((schoolNameOption) => {
     const option = document.createElement("option");
-    option.value = school.id;
-    option.textContent = school.nom_estab;
+    option.value = schoolNameOption;
+    option.textContent = schoolNameOption;
     schoolSelect?.appendChild(option);
   });
 }
@@ -296,7 +404,7 @@ function setupSchoolSearch() {
       schoolPanel.textContent = "Selecciona una escuela del listado para analizar.";
       return;
     }
-    const school = schoolSearchIndex.find((item) => item.id === schoolSelect.value);
+    const school = schoolByName.get(schoolSelect.value);
     if (!school) {
       schoolPanel.textContent = "No se encontro la escuela seleccionada.";
       return;
@@ -425,6 +533,9 @@ function setupLocationButtons() {
           }).addTo(map);
         } else {
           layers.userLocationMarker.setLatLng([loc.lat, loc.lng]);
+        }
+        if (selectedSchool) {
+          runSchoolAnalysis();
         }
       },
       onError: (error) => {
