@@ -3,11 +3,18 @@ import "./styles.css";
 import { DEFAULT_CENTER, DEFAULT_ZOOM } from "./config";
 import { loadAllData } from "./services/dataService";
 import { nearestLines, nearestStops } from "./services/analysisService";
+import { calculateRoute } from "./services/routingService";
 import {
   stopWatchingLocation,
   watchUserLocation
 } from "./services/locationService";
 import { lineStyleByType, loadIconStyles } from "./utils/mapStyles";
+import {
+  lineString,
+  nearestPointOnLine,
+  point,
+  pointToLineDistance
+} from "@turf/turf";
 
 const map = L.map("map").setView(DEFAULT_CENTER, DEFAULT_ZOOM);
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -20,12 +27,15 @@ const locationStatus = document.querySelector("#location-status");
 const stopsRadiusInput = document.querySelector("#stops-radius-input");
 const linesRadiusInput = document.querySelector("#lines-radius-input");
 const schoolSelect = document.querySelector("#school-select");
+const transitPanelStatus = document.querySelector("#transit-panel-status");
+const transitOptionsList = document.querySelector("#transit-options-list");
 
 const layers = {};
 const highlightLayers = {
   school: L.layerGroup().addTo(map),
   stops: L.layerGroup().addTo(map),
-  lines: L.layerGroup().addTo(map)
+  lines: L.layerGroup().addTo(map),
+  route: L.layerGroup().addTo(map)
 };
 
 let lastLocation = null;
@@ -34,6 +44,7 @@ let selectedSchool = null;
 const layerRefs = {};
 const schoolSearchIndex = [];
 const schoolByName = new Map();
+let latestTransitOptions = [];
 
 function formatMeters(value) {
   return `${Math.round(value)} m`;
@@ -152,15 +163,15 @@ function selectSchool({ feature, latlng }) {
   }
   highlightLayers.school.clearLayers();
   L.circleMarker([latlng.lat, latlng.lng], {
-    radius: 13,
+    radius: 16,
     color: "#ffffff",
     weight: 3,
-    fillColor: "#8b0000",
-    fillOpacity: 0.28
+    fillColor: "#ffd9a8",
+    fillOpacity: 0.36
   }).addTo(highlightLayers.school);
   L.circleMarker([latlng.lat, latlng.lng], {
-    radius: 7,
-    color: "#ffffff",
+    radius: 8.5,
+    color: "#fff8d6",
     weight: 2,
     fillColor: "#b30012",
     fillOpacity: 0.95
@@ -170,6 +181,112 @@ function selectSchool({ feature, latlng }) {
     duration: 0.8
   });
   runSchoolAnalysis();
+}
+
+function nearestPointOnFeatureLine(feature, sourceLatLng) {
+  const geometry = feature?.geometry;
+  if (!geometry?.type || !geometry?.coordinates) {
+    return null;
+  }
+  const source = point([sourceLatLng.lng, sourceLatLng.lat]);
+  let best = null;
+  let bestDist = Number.POSITIVE_INFINITY;
+  if (geometry.type === "LineString") {
+    try {
+      const p = nearestPointOnLine(feature, source);
+      return {
+        lat: p.geometry.coordinates[1],
+        lng: p.geometry.coordinates[0]
+      };
+    } catch {
+      return null;
+    }
+  }
+  if (geometry.type === "MultiLineString") {
+    geometry.coordinates.forEach((coords) => {
+      if (!Array.isArray(coords) || coords.length < 2) {
+        return;
+      }
+      const ls = lineString(coords);
+      const d = pointToLineDistance(source, ls, { units: "kilometers" });
+      if (d < bestDist) {
+        bestDist = d;
+        best = nearestPointOnLine(ls, source);
+      }
+    });
+    if (best) {
+      return {
+        lat: best.geometry.coordinates[1],
+        lng: best.geometry.coordinates[0]
+      };
+    }
+  }
+  return null;
+}
+
+function renderTransitOptions(options) {
+  latestTransitOptions = options;
+  if (!transitOptionsList || !transitPanelStatus) {
+    return;
+  }
+  transitOptionsList.innerHTML = "";
+  if (!selectedSchool) {
+    transitPanelStatus.textContent =
+      "Selecciona una escuela para ver opciones de transporte.";
+    return;
+  }
+  if (options.length === 0) {
+    transitPanelStatus.textContent =
+      "No hay opciones en el radio actual. Amplia radios de análisis.";
+    return;
+  }
+  transitPanelStatus.textContent = `${options.length} opciones ordenadas por cercania.`;
+  options.forEach((opt, idx) => {
+    const box = document.createElement("div");
+    box.className = "transit-option";
+    box.innerHTML = `
+      <div class="top">
+        <span>${idx + 1}. ${opt.mode}</span>
+        <span>${opt.distanceMeters} m</span>
+      </div>
+      <div class="small muted">${opt.name}</div>
+      <button data-opt-idx="${idx}">Trazar caminata a esta opcion</button>
+    `;
+    transitOptionsList.appendChild(box);
+  });
+}
+
+async function traceWalkingAccess(option) {
+  if (!selectedSchool) {
+    return;
+  }
+  const origin = selectedSchool.latlng;
+  const destination = option.targetLatLng;
+  if (!destination) {
+    return;
+  }
+  transitPanelStatus.textContent = `Calculando caminata a ${option.mode}...`;
+  try {
+    const routeData = await calculateRoute({
+      origin,
+      destination,
+      profile: "walking"
+    });
+    highlightLayers.route.clearLayers();
+    L.geoJSON(
+      {
+        type: "Feature",
+        geometry: routeData.geometry,
+        properties: {}
+      },
+      {
+        style: { color: "#ffe38c", weight: 4, opacity: 0.85, dashArray: "6,5" }
+      }
+    ).addTo(highlightLayers.route);
+    transitPanelStatus.textContent = `Caminata estimada: ${Math.round(routeData.durationSeconds / 60)} min, ${routeData.distanceMeters} m.`;
+  } catch {
+    transitPanelStatus.textContent = "No se pudo trazar la caminata para esta opcion.";
+  }
 }
 
 function minDistanceByMode(items) {
@@ -297,9 +414,9 @@ function runSchoolAnalysis() {
   lineResults.forEach((item) => {
     L.geoJSON(item.feature, {
       style: {
-        color: "#f59e0b",
-        weight: 5,
-        opacity: 0.85
+        color: "#f8cf7c",
+        weight: 3,
+        opacity: 0.42
       }
     })
       .bindPopup(`${item.name}<br/>${item.layerName}<br/>Distancia: ${formatMeters(item.distanceMeters)}`)
@@ -330,6 +447,40 @@ function runSchoolAnalysis() {
   applyLayer("#layer-rtp-rutas", layerRefs.rtpRutasLayer, shouldShow.rtpRutas);
   applyLayer("#layer-camiones-rutas", layerRefs.camionesRutasLayer, shouldShow.camionesRutas);
   applyVisualDensityMode();
+
+  const transportOptions = [
+    ...stopResults.map((item) => ({
+      mode: item.layerName.includes("Metro")
+        ? "Metro"
+        : item.layerName.includes("RTP")
+          ? "RTP"
+          : "Camiones",
+      name: item.name,
+      layerName: item.layerName,
+      distanceMeters: item.distanceMeters,
+      targetLatLng: {
+        lat: item.feature.geometry.coordinates[1],
+        lng: item.feature.geometry.coordinates[0]
+      }
+    })),
+    ...lineResults
+      .map((item) => ({
+        mode: item.layerName.includes("Metro")
+          ? "Metro"
+          : item.layerName.includes("RTP")
+            ? "RTP"
+            : "Camiones",
+        name: item.name,
+        layerName: item.layerName,
+        distanceMeters: item.distanceMeters,
+        targetLatLng: nearestPointOnFeatureLine(item.feature, schoolLatLng)
+      }))
+      .filter((x) => Boolean(x.targetLatLng))
+  ]
+    .sort((a, b) => a.distanceMeters - b.distanceMeters)
+    .slice(0, 12);
+
+  renderTransitOptions(transportOptions);
 
   const liveOptions = buildLiveLocationOptions({
     schoolLatLng,
@@ -620,6 +771,8 @@ function setupLayerToggles() {
     highlightLayers.school.clearLayers();
     highlightLayers.stops.clearLayers();
     highlightLayers.lines.clearLayers();
+    highlightLayers.route.clearLayers();
+    renderTransitOptions([]);
     schoolPanel.textContent = "Resultados limpiados. Selecciona otra escuela para analizar.";
   });
 
@@ -636,6 +789,24 @@ function setupLayerToggles() {
   toggles.forEach(({ checkbox, key }) => {
     const input = document.querySelector(checkbox);
     setLayerVisibility(layerRefs[key], Boolean(input?.checked));
+  });
+}
+
+function setupTransitOptionActions() {
+  transitOptionsList?.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) {
+      return;
+    }
+    const idx = target.getAttribute("data-opt-idx");
+    if (idx === null) {
+      return;
+    }
+    const option = latestTransitOptions[Number(idx)];
+    if (!option) {
+      return;
+    }
+    traceWalkingAccess(option);
   });
 }
 
@@ -717,6 +888,7 @@ async function init() {
 
   setupLocationButtons();
   setupLayerToggles();
+  setupTransitOptionActions();
   populateSchoolSelect();
   setupSchoolSearch();
   applyVisualDensityMode();

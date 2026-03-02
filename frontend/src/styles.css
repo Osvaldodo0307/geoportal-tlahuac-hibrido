@@ -236,6 +236,57 @@ button:hover {
   height: 100%;
 }
 
+main {
+  position: relative;
+}
+
+.right-panel {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: min(320px, 32vw);
+  max-height: calc(100% - 20px);
+  overflow: auto;
+  border: 1px solid #7f2f3a;
+  background: rgba(52, 12, 17, 0.92);
+  border-radius: 10px;
+  padding: 10px;
+  z-index: 500;
+  backdrop-filter: blur(3px);
+}
+
+.right-panel h3 {
+  margin: 0 0 8px;
+  color: #fff2f4;
+  font-size: 0.95rem;
+}
+
+.transit-list {
+  display: grid;
+  gap: 8px;
+}
+
+.transit-option {
+  border: 1px solid #92414d;
+  border-radius: 8px;
+  background: #4a1118;
+  padding: 8px;
+}
+
+.transit-option .top {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: #ffecef;
+  font-size: 0.86rem;
+}
+
+.transit-option button {
+  margin-top: 6px;
+  padding: 6px;
+  font-size: 0.84rem;
+}
+
 .leaflet-popup-content {
   font-size: 0.88rem;
 }
@@ -274,5 +325,15 @@ button:hover {
 
   #search-input {
     width: 100%;
+  }
+
+  .right-panel {
+    position: absolute;
+    left: 10px;
+    right: 10px;
+    bottom: 10px;
+    top: auto;
+    width: auto;
+    max-height: 34vh;
   }
 }
