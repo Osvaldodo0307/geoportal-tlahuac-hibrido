@@ -241,11 +241,38 @@ button:hover {
 }
 
 @media (max-width: 1000px) {
+  .topbar {
+    height: auto;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 10px;
+  }
+
+  .topbar-actions {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    gap: 6px;
+  }
+
   .content {
-    grid-template-columns: minmax(260px, 33.33vw) 1fr;
+    grid-template-columns: 1fr;
+    grid-template-rows: 56vh 44vh;
+    height: calc(100vh - 90px);
+  }
+
+  main {
+    order: 1;
+  }
+
+  .sidebar {
+    order: 2;
+    max-width: 100%;
+    border-right: none;
+    border-top: 1px solid #6a1c27;
   }
 
   #search-input {
-    width: 200px;
+    width: 100%;
   }
 }

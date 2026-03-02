@@ -1,4 +1,4 @@
-import { distance, point, pointToLineDistance } from "@turf/turf";
+import { distance, lineString, point, pointToLineDistance } from "@turf/turf";
 
 function toPointFeature(latlng) {
   return point([latlng.lng, latlng.lat]);
@@ -67,8 +67,41 @@ export function nearestLines({ schoolLatLng, lineLayers, radiusMeters = 300, max
 
   for (const layer of lineLayers) {
     for (const feature of layer.features || []) {
-      const distMeters =
-        pointToLineDistance(schoolPoint, feature, { units: "kilometers" }) * 1000;
+      const geometry = feature?.geometry;
+      if (!geometry?.type || !geometry?.coordinates) {
+        continue;
+      }
+
+      let distMeters = Number.POSITIVE_INFINITY;
+      try {
+        if (geometry.type === "LineString") {
+          distMeters = pointToLineDistance(schoolPoint, feature, {
+            units: "kilometers"
+          }) * 1000;
+        } else if (geometry.type === "MultiLineString") {
+          for (const coords of geometry.coordinates) {
+            if (!Array.isArray(coords) || coords.length < 2) {
+              continue;
+            }
+            const segmentDistance =
+              pointToLineDistance(schoolPoint, lineString(coords), {
+                units: "kilometers"
+              }) * 1000;
+            if (segmentDistance < distMeters) {
+              distMeters = segmentDistance;
+            }
+          }
+        } else {
+          continue;
+        }
+      } catch {
+        continue;
+      }
+
+      if (!Number.isFinite(distMeters)) {
+        continue;
+      }
+
       if (distMeters <= radiusMeters) {
         allLines.push({
           feature,
