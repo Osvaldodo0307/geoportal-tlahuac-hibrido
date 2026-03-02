@@ -29,6 +29,7 @@ const schoolSelect = document.querySelector("#school-select");
 
 const layers = {};
 const highlightLayers = {
+  school: L.layerGroup().addTo(map),
   stops: L.layerGroup().addTo(map),
   lines: L.layerGroup().addTo(map),
   route: L.layerGroup().addTo(map)
@@ -99,7 +100,25 @@ function updateSchoolPanel({ schoolFeature, stopResults, lineResults }) {
 
 function selectSchool({ feature, latlng }) {
   selectedSchool = { feature, latlng };
-  map.setView([latlng.lat, latlng.lng], Math.max(map.getZoom(), 15));
+  highlightLayers.school.clearLayers();
+  L.circleMarker([latlng.lat, latlng.lng], {
+    radius: 13,
+    color: "#ffffff",
+    weight: 3,
+    fillColor: "#8b0000",
+    fillOpacity: 0.28
+  }).addTo(highlightLayers.school);
+  L.circleMarker([latlng.lat, latlng.lng], {
+    radius: 7,
+    color: "#ffffff",
+    weight: 2,
+    fillColor: "#b30012",
+    fillOpacity: 0.95
+  }).addTo(highlightLayers.school);
+  const nextZoom = Math.min(17, Math.max(map.getZoom() + 1, 15));
+  map.flyTo([latlng.lat, latlng.lng], nextZoom, {
+    duration: 0.8
+  });
   runSchoolAnalysis();
 }
 
@@ -511,6 +530,7 @@ function setupLayerToggles() {
   });
 
   document.querySelector("#clear-highlights-btn")?.addEventListener("click", () => {
+    highlightLayers.school.clearLayers();
     highlightLayers.stops.clearLayers();
     highlightLayers.lines.clearLayers();
     highlightLayers.route.clearLayers();
@@ -525,6 +545,12 @@ function setupLayerToggles() {
       const text = label.textContent.toLowerCase();
       label.style.display = !value || text.includes(value) ? "block" : "none";
     });
+  });
+
+  // Aplica el estado inicial de visibilidad segun los checkboxes del panel.
+  toggles.forEach(({ checkbox, key }) => {
+    const input = document.querySelector(checkbox);
+    setLayerVisibility(layerRefs[key], Boolean(input?.checked));
   });
 }
 

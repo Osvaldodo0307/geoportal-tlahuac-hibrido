@@ -11,7 +11,7 @@
 
 body {
   margin: 0;
-  background: #06141f;
+  background: #20070a;
 }
 
 #app {
@@ -24,23 +24,39 @@ body {
   align-items: center;
   justify-content: space-between;
   padding: 10px 14px;
-  background: #0b2232;
-  border-bottom: 1px solid #16384f;
+  background: #5a0b12;
+  border-bottom: 1px solid #8a1f2d;
 }
 
 .brand {
   display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+}
+
+.brand-text {
+  display: flex;
   flex-direction: column;
 }
 
+.brand-logo {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid #b83f4f;
+}
+
 .brand strong {
-  color: #e5edf4;
+  color: #fff4f4;
   font-size: 1.05rem;
+  display: block;
 }
 
 .brand span {
-  color: #91a9bc;
+  color: #f1c7cc;
   font-size: 0.82rem;
+  display: block;
 }
 
 .topbar-actions {
@@ -52,9 +68,9 @@ body {
 #search-input {
   width: 340px;
   margin: 0;
-  background: #0a1b29;
-  border: 1px solid #1f4157;
-  color: #dce7f0;
+  background: #3a0c12;
+  border: 1px solid #8a2a36;
+  color: #ffe7ea;
 }
 
 .content {
@@ -65,18 +81,18 @@ body {
 
 .sidebar {
   overflow: auto;
-  border-right: 1px solid #16384f;
+  border-right: 1px solid #6a1c27;
   padding: 12px;
-  background: #091a28;
+  background: #2b090d;
   max-width: 33.33vw;
 }
 
 .panel-block {
   margin-bottom: 12px;
   padding: 12px;
-  border: 1px solid #1d3b4f;
+  border: 1px solid #7a2531;
   border-radius: 10px;
-  background: #0b2232;
+  background: #3a0d13;
 }
 
 .panel-title-row {
@@ -91,14 +107,14 @@ body {
   padding: 2px 6px;
   font-size: 0.78rem;
   border: none;
-  color: #7fb2d3;
+  color: #f3b4be;
   background: transparent;
   cursor: pointer;
 }
 
 .group-title {
   margin: 8px 0 4px;
-  color: #87a7bc;
+  color: #dca6ad;
   font-size: 0.8rem;
   text-transform: uppercase;
 }
@@ -106,7 +122,7 @@ body {
 .layer-item {
   display: block;
   margin-top: 6px;
-  color: #d7e4ee;
+  color: #ffe8eb;
   font-size: 0.92rem;
 }
 
@@ -123,14 +139,14 @@ h1 {
 h2 {
   margin: 0 0 8px;
   font-size: 0.96rem;
-  color: #ebf4fb;
+  color: #fff3f4;
 }
 
 label {
   display: block;
   margin-top: 8px;
   font-size: 0.9rem;
-  color: #bfd4e4;
+  color: #f3ccd1;
 }
 
 input,
@@ -140,9 +156,9 @@ button {
   margin-top: 6px;
   padding: 8px;
   border-radius: 8px;
-  border: 1px solid #285170;
-  background: #0c2638;
-  color: #e8f2f9;
+  border: 1px solid #8c2e3a;
+  background: #4a0f17;
+  color: #fff1f3;
 }
 
 button {
@@ -164,7 +180,7 @@ button:hover {
 }
 
 .muted {
-  color: #90a9ba;
+  color: #d7a8af;
 }
 
 .small {
@@ -174,19 +190,19 @@ button:hover {
 .status {
   margin-top: 8px;
   font-size: 0.9rem;
-  color: #c8d8e5;
+  color: #f4d0d5;
 }
 
 .panel {
   max-height: 220px;
   overflow: auto;
   margin-top: 8px;
-  border: 1px solid #2a4c62;
+  border: 1px solid #7f2f3a;
   border-radius: 6px;
-  background: #092131;
+  background: #340c11;
   padding: 8px;
   font-size: 0.88rem;
-  color: #deebf5;
+  color: #ffecef;
 }
 
 #map {
